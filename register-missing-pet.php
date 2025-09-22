@@ -6,10 +6,12 @@ function generate_uuid(){
     $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
-$errors = [];$successInfo=null;$rawPetType='Auto-Detect';$finalPetType=null;$savedPath=null;$originalName='';
+$errors = [];$successInfo=null;$rawPetType='Auto-Detect';$finalPetType=null;$savedPath=null;$originalName='';$enablePreprocess=true;
 if($_SERVER['REQUEST_METHOD']==='POST'){
     $rawPetType = isset($_POST['pet_type']) ? trim($_POST['pet_type']) : 'Auto-Detect';
     $originalName = isset($_POST['pet_name']) ? trim($_POST['pet_name']) : '';
+    // Checkbox: if not present, treat as disabled
+    $enablePreprocess = isset($_POST['preprocess']) && ($_POST['preprocess']==='on' || $_POST['preprocess']==='1' || $_POST['preprocess']==='true');
     if($originalName===''){ $errors[]='Pet/File Name is required.'; }
     if(!isset($_FILES['pet_image']) || $_FILES['pet_image']['error']!==UPLOAD_ERR_OK){ $errors[]='Pet image is required.'; }
     if(!$errors){
@@ -18,34 +20,88 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         if(!preg_match('/image\/(jpeg|png|jpg|webp|bmp)/i',$mime)){
             $errors[]='Unsupported image format.';
         } else {
-            $python = 'python';
-            $processScript = __DIR__ . DIRECTORY_SEPARATOR . 'python' . DIRECTORY_SEPARATOR . 'process_image.py';
-            if(!file_exists($processScript)){
-                $errors[]='Processing script missing.';
-            } else {
-                $tmpDir = sys_get_temp_dir();
-                $ext = pathinfo($_FILES['pet_image']['name'], PATHINFO_EXTENSION);
-                if(!$ext) $ext='jpg';
-                $tempInput = $tmpDir.DIRECTORY_SEPARATOR.'reg_'.generate_uuid().'.'.$ext;
-                @move_uploaded_file($uploadTmp,$tempInput);
-                $cmd = escapeshellcmd($python.' '.escapeshellarg($processScript).' '.escapeshellarg($tempInput));
-                $output = shell_exec($cmd.' 2>&1');
-                $json=null; if($output){ $brace=strpos($output,'{'); if($brace!==false){ $json=json_decode(substr($output,$brace),true);} }
-                if(!($json && isset($json['ok']) && $json['ok'])){ $errors[]='Failed to preprocess image.'; }
-                else {
-                    $processedBase64 = $json['processed_base64'] ?? null;
-                    $detType = $json['pet_type'] ?? 'Unknown';
-                    if(!$processedBase64){ $errors[]='Preprocessed image missing.'; }
+            // Branch: advanced preprocessing (YOLO) or simple resize only
+            if($enablePreprocess){
+                $python = 'python';
+                $processScript = __DIR__ . DIRECTORY_SEPARATOR . 'python' . DIRECTORY_SEPARATOR . 'process_image.py';
+                if(!file_exists($processScript)){
+                    $errors[]='Processing script missing.';
+                } else {
+                    $tmpDir = sys_get_temp_dir();
+                    $ext = pathinfo($_FILES['pet_image']['name'], PATHINFO_EXTENSION);
+                    if(!$ext) $ext='jpg';
+                    $tempInput = $tmpDir.DIRECTORY_SEPARATOR.'reg_'.generate_uuid().'.'.$ext;
+                    @move_uploaded_file($uploadTmp,$tempInput);
+                    $cmd = escapeshellcmd($python.' '.escapeshellarg($processScript).' '.escapeshellarg($tempInput));
+                    $output = shell_exec($cmd.' 2>&1');
+                    $json=null; if($output){ $brace=strpos($output,'{'); if($brace!==false){ $json=json_decode(substr($output,$brace),true);} }
+                    if(!($json && isset($json['ok']) && $json['ok'])){ $errors[]='Failed to preprocess image.'; }
                     else {
-                        if($rawPetType==='Auto-Detect'){ $finalPetType=$detType; }
-                        else { $finalPetType=$rawPetType; }
-                        // Normalize
-                        $finalPetType = strtolower($finalPetType);
-                        $folder = null;
-                        if(stripos($finalPetType,'cat')===0) $folder='Cats';
-                        elseif(stripos($finalPetType,'dog')===0) $folder='Dogs';
-                        else { $errors[]='Could not determine pet type (got: '.htmlspecialchars($finalPetType).').'; }
-                        if(!$errors){
+                        $processedBase64 = $json['processed_base64'] ?? null;
+                        $detType = $json['pet_type'] ?? 'Unknown';
+                        if(!$processedBase64){ $errors[]='Preprocessed image missing.'; }
+                        else {
+                            if($rawPetType==='Auto-Detect'){ $finalPetType=$detType; }
+                            else { $finalPetType=$rawPetType; }
+                            // Normalize
+                            $finalPetType = strtolower($finalPetType);
+                            $folder = null;
+                            if(stripos($finalPetType,'cat')===0) $folder='Cats';
+                            elseif(stripos($finalPetType,'dog')===0) $folder='Dogs';
+                            else { $folder='Unknown'; }
+                            if(!$errors){
+                                $preDir = __DIR__.DIRECTORY_SEPARATOR.'Preprocessed';
+                                $saveDir = $preDir.DIRECTORY_SEPARATOR.$folder;
+                                if(!is_dir($saveDir)){ @mkdir($saveDir,0777,true); }
+                                $safeBase = preg_replace('/[^a-zA-Z0-9_-]+/','_', $originalName);
+                                $uuid = generate_uuid();
+                                $fileName = $safeBase.'_'.$uuid.'.jpg';
+                                $raw = base64_decode($processedBase64);
+                                if($raw===false){ $errors[]='Failed decoding processed image.'; }
+                                else {
+                                    $dest = $saveDir.DIRECTORY_SEPARATOR.$fileName;
+                                    file_put_contents($dest,$raw);
+                                    if(file_exists($dest)){
+                                        $savedPath = $dest;
+                                        $dataUri = 'data:image/jpeg;base64,'.base64_encode($raw);
+                                        $successInfo = [
+                                            'name'=>$originalName,
+                                            'finalType'=> (stripos($finalPetType,'cat')===0?'Cat':(stripos($finalPetType,'dog')===0?'Dog':'Unknown')),
+                                            'location'=> 'Preprocessed'.DIRECTORY_SEPARATOR.$folder.DIRECTORY_SEPARATOR.$fileName,
+                                            'processedDataUri' => $dataUri
+                                        ];
+                                    } else { $errors[]='Failed writing file.'; }
+                                }
+                            }
+                        }
+                    }
+                    @unlink($tempInput);
+                }
+            } else {
+                // Simple resize path: 224x224 without YOLO detection, use Pillow script (no PHP GD dependency)
+                $python = 'python';
+                $resizeScript = __DIR__ . DIRECTORY_SEPARATOR . 'python' . DIRECTORY_SEPARATOR . 'resize_image.py';
+                if(!file_exists($resizeScript)){
+                    $errors[]='Resize script missing.';
+                } else {
+                    $tmpDir = sys_get_temp_dir();
+                    $ext = pathinfo($_FILES['pet_image']['name'], PATHINFO_EXTENSION);
+                    if(!$ext) $ext='jpg';
+                    $tempInput = $tmpDir.DIRECTORY_SEPARATOR.'reg_rs_'.generate_uuid().'.'.$ext;
+                    @move_uploaded_file($uploadTmp,$tempInput);
+                    $cmd = escapeshellcmd($python.' '.escapeshellarg($resizeScript).' '.escapeshellarg($tempInput));
+                    $output = shell_exec($cmd.' 2>&1');
+                    $json=null; if($output){ $brace=strpos($output,'{'); if($brace!==false){ $json=json_decode(substr($output,$brace),true);} }
+                    if(!($json && isset($json['ok']) && $json['ok'])){ $errors[]='Failed to resize image.'; }
+                    else {
+                        $processedBase64 = $json['processed_base64'] ?? null;
+                        if(!$processedBase64){ $errors[]='Resized image missing.'; }
+                        else {
+                            // Determine final type from user selection (no auto-detect here)
+                            if($rawPetType==='Cat') $finalPetType='Cat';
+                            elseif($rawPetType==='Dog') $finalPetType='Dog';
+                            else $finalPetType='Unknown';
+                            $folder = ($finalPetType==='Cat')?'Cats':(($finalPetType==='Dog')?'Dogs':'Unknown');
                             $preDir = __DIR__.DIRECTORY_SEPARATOR.'Preprocessed';
                             $saveDir = $preDir.DIRECTORY_SEPARATOR.$folder;
                             if(!is_dir($saveDir)){ @mkdir($saveDir,0777,true); }
@@ -53,7 +109,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                             $uuid = generate_uuid();
                             $fileName = $safeBase.'_'.$uuid.'.jpg';
                             $raw = base64_decode($processedBase64);
-                            if($raw===false){ $errors[]='Failed decoding processed image.'; }
+                            if($raw===false){ $errors[]='Failed decoding resized image.'; }
                             else {
                                 $dest = $saveDir.DIRECTORY_SEPARATOR.$fileName;
                                 file_put_contents($dest,$raw);
@@ -62,16 +118,16 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                                     $dataUri = 'data:image/jpeg;base64,'.base64_encode($raw);
                                     $successInfo = [
                                         'name'=>$originalName,
-                                        'finalType'=> (stripos($finalPetType,'cat')===0?'Cat':'Dog'),
+                                        'finalType'=> $finalPetType,
                                         'location'=> 'Preprocessed'.DIRECTORY_SEPARATOR.$folder.DIRECTORY_SEPARATOR.$fileName,
                                         'processedDataUri' => $dataUri
                                     ];
-                                } else { $errors[]='Failed writing file.'; }
+                                } else { $errors[]='Failed writing resized file.'; }
                             }
                         }
                     }
+                    @unlink($tempInput);
                 }
-                @unlink($tempInput);
             }
         }
     }
@@ -139,8 +195,8 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                     </circle>
                 </svg>
             </div>
-            <div style="font-size:1.25rem;color:#223a7b;font-weight:700;margin-bottom:8px;">Processing your image...</div>
-            <div style="font-size:1.05rem;color:#3867d6;text-align:center;">This may take a few seconds.<br>Please wait while we detect and crop your pet's face.</div>
+            <div id="register-overlay-title" style="font-size:1.25rem;color:#223a7b;font-weight:700;margin-bottom:8px;">Processing your image...</div>
+            <div id="register-overlay-desc" style="font-size:1.05rem;color:#3867d6;text-align:center;">This may take a few seconds.<br>Please wait while we detect and crop your pet's face.</div>
         </div>
     </div>
     <form class="register-wrapper" id="registerForm" method="post" enctype="multipart/form-data">
@@ -171,6 +227,15 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                     </label>
                 </div>
             </div>
+        </div>
+        <!-- Image Pre-processing option -->
+        <div class="find-preprocess-section" style="margin-top:6px;">
+            <label class="find-label" for="preprocess" style="margin-bottom:10px;"><b>Image Pre-processing</b></label>
+            <div class="find-checkbox-row" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <input type="checkbox" id="preprocess" name="preprocess" checked style="width:18px;height:18px;">
+                <label for="preprocess" style="cursor:pointer;color:#223a7b;">Enable advanced image pre-processing</label>
+            </div>
+            <div class="find-preprocess-desc" style="font-size:0.92rem;color:#4a5a7b;">Image pre-processing improves detection accuracy by normalizing images into a standard body/face crop of pet and resizing it to 224x224. Disable only if you experience issues.</div>
         </div>
         <div class="btn-row">
             <button type="submit" class="btn-primary">register pet</button>
@@ -225,6 +290,9 @@ const registerDialogText = document.getElementById('register-notification-dialog
 const registerLoading = document.getElementById('register-loading-overlay');
 const registerForm = document.getElementById('registerForm');
 let registerDialogTimeout = null;
+const preprocessCheckbox = document.getElementById('preprocess');
+const overlayTitle = document.getElementById('register-overlay-title');
+const overlayDesc = document.getElementById('register-overlay-desc');
 
 function showRegisterDialog(message){
     registerDialogText.textContent = message;
@@ -256,6 +324,13 @@ registerForm.addEventListener('submit', e=>{
         return;
     }
     // Show loading overlay while backend preprocesses
+    if(preprocessCheckbox && !preprocessCheckbox.checked){
+        if(overlayTitle) overlayTitle.textContent='Resizing your image...';
+        if(overlayDesc) overlayDesc.textContent='Quickly resizing to 224×224 (no detection).';
+    }else{
+        if(overlayTitle) overlayTitle.textContent='Processing your image...';
+        if(overlayDesc) overlayDesc.innerHTML='This may take a few seconds.<br>Please wait while we detect and crop your pet\'s face.';
+    }
     registerLoading.style.display='flex';
 });
 
