@@ -6,7 +6,7 @@ function generate_uuid(){
     $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
-$errors = [];$successInfo=null;$rawPetType='Auto-Detect';$finalPetType=null;$savedPath=null;$originalName='';$enablePreprocess=true;
+$errors = [];$successInfo=null;$rawPetType='Auto-Detect';$finalPetType=null;$savedPath=null;$originalName='';
 if($_SERVER['REQUEST_METHOD']==='POST'){
     $rawPetType = isset($_POST['pet_type']) ? trim($_POST['pet_type']) : 'Auto-Detect';
     $originalName = isset($_POST['pet_name']) ? trim($_POST['pet_name']) : '';
@@ -16,7 +16,34 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     if(!isset($_FILES['pet_image']) || $_FILES['pet_image']['error']!==UPLOAD_ERR_OK){ $errors[]='Pet image is required.'; }
     if(!$errors){
         $uploadTmp = $_FILES['pet_image']['tmp_name'];
-        $mime = mime_content_type($uploadTmp);
+        
+        // Check if FileInfo extension is available, if not use alternative method
+        if (function_exists('mime_content_type')) {
+            $mime = mime_content_type($uploadTmp);
+        } else {
+            // Fallback: Check file signature/magic bytes
+            $finfo = @fopen($uploadTmp, 'rb');
+            if ($finfo) {
+                $bytes = fread($finfo, 12);
+                fclose($finfo);
+                
+                // Check image signatures
+                if (substr($bytes, 0, 2) === "\xFF\xD8") {
+                    $mime = 'image/jpeg';
+                } elseif (substr($bytes, 0, 8) === "\x89PNG\r\n\x1A\n") {
+                    $mime = 'image/png';
+                } elseif (substr($bytes, 0, 4) === "RIFF" && substr($bytes, 8, 4) === "WEBP") {
+                    $mime = 'image/webp';
+                } elseif (substr($bytes, 0, 2) === "BM") {
+                    $mime = 'image/bmp';
+                } else {
+                    $mime = $_FILES['pet_image']['type']; // Fallback to browser-provided type
+                }
+            } else {
+                $mime = $_FILES['pet_image']['type']; // Fallback to browser-provided type
+            }
+        }
+        
         if(!preg_match('/image\/(jpeg|png|jpg|webp|bmp)/i',$mime)){
             $errors[]='Unsupported image format.';
         } else {
@@ -35,7 +62,10 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                     $cmd = escapeshellcmd($python.' '.escapeshellarg($processScript).' '.escapeshellarg($tempInput));
                     $output = shell_exec($cmd.' 2>&1');
                     $json=null; if($output){ $brace=strpos($output,'{'); if($brace!==false){ $json=json_decode(substr($output,$brace),true);} }
-                    if(!($json && isset($json['ok']) && $json['ok'])){ $errors[]='Failed to preprocess image.'; }
+                    if(!($json && isset($json['ok']) && $json['ok'])){ 
+                        $errorDetail = ($json && isset($json['error'])) ? $json['error'] : 'Unknown preprocessing error';
+                        $errors[]='Failed to preprocess image: ' . $errorDetail; 
+                    }
                     else {
                         $processedBase64 = $json['processed_base64'] ?? null;
                         $detType = $json['pet_type'] ?? 'Unknown';
@@ -92,14 +122,18 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                     $cmd = escapeshellcmd($python.' '.escapeshellarg($resizeScript).' '.escapeshellarg($tempInput));
                     $output = shell_exec($cmd.' 2>&1');
                     $json=null; if($output){ $brace=strpos($output,'{'); if($brace!==false){ $json=json_decode(substr($output,$brace),true);} }
-                    if(!($json && isset($json['ok']) && $json['ok'])){ $errors[]='Failed to resize image.'; }
+                    if(!($json && isset($json['ok']) && $json['ok'])){ 
+                        $errorDetail = ($json && isset($json['error'])) ? $json['error'] : 'Unknown resize error';
+                        $errors[]='Failed to resize image: ' . $errorDetail; 
+                    }
                     else {
                         $processedBase64 = $json['processed_base64'] ?? null;
                         if(!$processedBase64){ $errors[]='Resized image missing.'; }
                         else {
-                            // Determine final type from user selection (no auto-detect here)
+                            // Determine final type from user selection (no auto-detect in resize-only mode)
                             if($rawPetType==='Cat') $finalPetType='Cat';
                             elseif($rawPetType==='Dog') $finalPetType='Dog';
+                            elseif($rawPetType==='Auto-Detect') $finalPetType='Unknown'; // Can't auto-detect without YOLO
                             else $finalPetType='Unknown';
                             $folder = ($finalPetType==='Cat')?'Cats':(($finalPetType==='Dog')?'Dogs':'Unknown');
                             $preDir = __DIR__.DIRECTORY_SEPARATOR.'Preprocessed';
@@ -139,23 +173,24 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0" />
 <title>Register a Missing Pet - Fur-Get Me Not</title>
-<link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/styles.css" />
+<link rel="stylesheet" href="css/components.css" />
 <style>
     body { background:#f5f8ff; font-family: 'Segoe UI', Arial, sans-serif; }
-    .register-wrapper { max-width:880px; margin:46px auto 80px; padding:34px 42px 46px; background:#fff; border-radius:18px; box-shadow:0 12px 48px -18px rgba(34,58,123,0.18),0 4px 16px -4px rgba(34,58,123,0.12); position:relative; }
+    .register-wrapper { max-width:880px; margin:46px auto 80px; padding:26px; background:#fff; border-radius:18px; box-shadow:0 12px 48px -18px rgba(34,58,123,0.18),0 4px 16px -4px rgba(34,58,123,0.12); position:relative; }
     .form-row { display:flex; flex-wrap:wrap; gap:34px; margin-bottom:22px; }
     .form-col { flex:1 1 300px; display:flex; flex-direction:column; gap:8px; }
-    label { font-size:0.82rem; font-weight:600; letter-spacing:.5px; color:#223a7b; text-transform:uppercase; }
+    label { font-size:1rem; font-weight:600; letter-spacing:.5px; color:#223a7b; margin-bottom:12px; }
     .required { color:#d23b3b; margin-left:4px; }
     input[type=text], select { border:1px solid #c9d5ea; padding:10px 12px; border-radius:10px; font-size:0.92rem; color:#223a7b; background:#f9fbfe; outline:none; transition:border-color .25s, background .25s; }
     input[type=text]:focus, select:focus { border-color:#3867d6; background:#ffffff; }
     .upload-area { border:2px dashed #9fb4d5; background:#f6f9fe; border-radius:14px; padding:38px 18px; text-align:center; font-size:0.95rem; color:#4a5a7b; cursor:pointer; position:relative; transition:border-color .25s, background .25s, color .25s; }
     .upload-area.dragover { border-color:#3867d6; background:#eef4ff; color:#223a7b; }
-    .btn-row { display:flex; gap:26px; margin-top:26px; }
-    .btn-primary { flex:1; background:#3867d6; color:#fff; font-weight:700; border:none; border-radius:18px; padding:14px 10px; font-size:0.95rem; cursor:pointer; box-shadow:0 4px 14px -2px rgba(56,103,214,.45); transition:background .25s, transform .25s; }
-    .btn-primary:hover { background:#2f59c2; transform:translateY(-2px); }
-    .btn-secondary { flex:1; background:#ffd166; color:#223a7b; font-weight:700; border:none; border-radius:18px; padding:14px 10px; font-size:0.95rem; cursor:pointer; box-shadow:0 3px 10px -2px rgba(180,130,20,.4); transition:filter .25s, transform .25s; }
-    .btn-secondary:hover { filter:brightness(1.05); transform:translateY(-2px); }
+    .btn-row { display:flex; gap:18px; margin-top:26px; }
+    .btn-primary { width: 100%; background:#3867d6; color:#fff; font-weight:600; border:none; border-radius:24px; padding:12px; font-size:1.1rem; cursor:pointer; transition:background .3s, ease; }
+    .btn-primary:hover { background:#2d4ba0; }
+    .btn-secondary { width: 100%; background:#ffd166; color:#fff; font-weight:600; border:none; border-radius:24px; padding:12px; font-size:1.1rem; cursor:pointer; transition:filter .3s, ease; }
+    .btn-secondary:hover { background:#f6c94c; }
     .error-box { background:#ffe9e9; border:1px solid #efb1b1; color:#7d1f1f; padding:14px 18px; border-radius:12px; font-size:0.85rem; margin-bottom:18px; }
     .success-modal-backdrop { position:fixed; inset:0; background:rgba(10,20,40,.55); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; z-index:1000; }
     .success-modal { background:#fff; padding:34px 40px 42px; border-radius:28px; max-width:520px; width:92%; box-shadow:0 18px 48px -12px rgba(0,0,0,.32); display:flex; flex-direction:column; gap:18px; }
@@ -163,21 +198,25 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     .success-details { font-size:0.9rem; color:#223a7b; background:#f0f5ff; border:1px solid #d4e1f5; padding:14px 16px; border-radius:14px; }
     .close-success { align-self:center; background:#3867d6; color:#fff; font-weight:700; border:none; border-radius:14px; padding:10px 28px; cursor:pointer; font-size:0.9rem; }
     .preview-img { max-width:220px; max-height:220px; border-radius:16px; object-fit:cover; box-shadow:0 6px 20px -8px rgba(34,58,123,.4); display:none; margin-top:18px; }
+    .reg-image-placeholder-text { color: #3867d6; font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; padding: 0 12px;}
+
+    @media (max-width: 768px) {
+        .reg-image-placeholder-text { font-size: 1rem; text-align: center; }
+        .btn-row { flex-direction: column; gap: 12px; }
+    }
 </style>
 </head>
 <body style="background: url('assets/Home/bg-rectangle.png') center/cover no-repeat fixed;">
     <div class="bg-paws"></div>
     <header>
-        <div class="how-header-bar">
-            <img src="assets/Home/Rectangle 6.png" alt="Header Rectangle" class="header-rectangle">
-            <a href="index.php" class="how-back-arrow" aria-label="Back to Home">
-                <img src="assets/How-it-Works/back-arrow.png" alt="Back Arrow" style="width:36px;height:36px;">
-            </a>
-        </div>
-        <div class="find-header">
-            <img src="assets/Logos/pawprint-blue 1.png" alt="Pawprint Logo" class="find-header-logo">
-            <h1 class="find-title">Register a missing pet</h1>
-            <div class="find-sub-pill">upload your missing pet</div>
+        <div class="header-bar"></div>
+        <a href="index.php" class="back-arrow">
+            <img src="assets/How-it-Works/back-arrow.png" alt="Back">
+        </a>
+        <div class="subpage-header">
+            <img src="assets/Logos/interface-setting-app-widget--Streamline-Core.png" alt="Matches Icon" class="subpage-icon">
+            <h1 class="subpage-title">Register a missing pet</h1>
+            <div class="subpage-subpill">Upload your missing pet</div>
         </div>
     </header>
 <main>
@@ -222,24 +261,24 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                 <div class="find-image-upload" id="reg-upload-box" style="min-height:240px;">
                     <input type="file" id="reg-pet-image" name="pet_image" accept="image/*" class="find-input" style="display:none;">
                     <label for="reg-pet-image" id="reg-upload-label" class="find-image-upload-label" style="cursor:pointer;min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-                        <span id="reg-image-placeholder">Click to upload or drag an image here</span>
+                        <span id="reg-image-placeholder" class="reg-image-placeholder-text">Click to upload or drag an image here</span>
                         <img id="reg-image-preview" src="" alt="Preview" style="display:none;max-width:100%;max-height:200px;border-radius:14px;box-shadow:0 2px 8px rgba(60,90,200,0.10);margin-top:12px;object-fit:cover;" />
                     </label>
                 </div>
             </div>
         </div>
         <!-- Image Pre-processing option -->
-        <div class="find-preprocess-section" style="margin-top:6px;">
-            <label class="find-label" for="preprocess" style="margin-bottom:10px;"><b>Image Pre-processing</b></label>
-            <div class="find-checkbox-row" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div class="find-form-group">
+            <label class="find-section-title" for="preprocess" style="margin-bottom:10px;">Image Pre-processing</label>
+            <div class="find-checkbox-group">
                 <input type="checkbox" id="preprocess" name="preprocess" checked style="width:18px;height:18px;">
-                <label for="preprocess" style="cursor:pointer;color:#223a7b;">Enable advanced image pre-processing</label>
+                <label for="preprocess">Enable advanced image pre-processing</label>
             </div>
-            <div class="find-preprocess-desc" style="font-size:0.92rem;color:#4a5a7b;">Image pre-processing improves detection accuracy by normalizing images into a standard body/face crop of pet and resizing it to 224x224. Disable only if you experience issues.</div>
+            <div class="find-form-description">Image pre-processing improves detection accuracy by normalizing images into a standard body/face crop of pet and resizing it to 224x224. Disable only if you experience issues.</div>
         </div>
         <div class="btn-row">
-            <button type="submit" class="btn-primary">register pet</button>
-            <button type="button" class="btn-secondary" onclick="window.location.href='index.php'">cancel</button>
+            <button type="submit" class="btn-primary">Register missing pet</button>
+            <button type="button" class="btn-secondary" onclick="window.location.href='index.php'">Cancel</button>
         </div>
     </form>
 </main>

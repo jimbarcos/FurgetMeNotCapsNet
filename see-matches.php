@@ -1,11 +1,16 @@
-<?php $serverStartMs = microtime(true)*1000.0; ?>
+<?php 
+set_time_limit(300); // Set execution time limit to 5 minutes
+$serverStartMs = microtime(true)*1000.0; 
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>See Matches - Fur-Get Me Not</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link href="./css/styles.css" rel="stylesheet">
+    <link href="./css/components.css" rel="stylesheet">
+
     <style>
         /* Enhanced card + name styling */
         .top-match-card {
@@ -13,6 +18,7 @@
             border:1px solid #d9e2f2;
             border-radius:20px;
             padding:16px 16px 18px;
+            min-width: 260px;
             display:flex;
             flex-direction:column;
             position:relative;
@@ -52,25 +58,21 @@
 <body style="background: url('assets/Home/bg-rectangle.png') center/cover no-repeat fixed;">
     <div class="bg-paws"></div>
     <header>
-        <div class="how-header-bar">
-            <img src="assets/Home/Rectangle 6.png" alt="Header Rectangle" class="header-rectangle">
-            <a href="find-missing-pet.php" class="how-back-arrow" aria-label="Back to Home">
-                <img src="assets/How-it-Works/back-arrow.png" alt="Back Arrow" style="width:36px;height:36px;">
-            </a>
-        </div>
-        <div class="see-matches-header">
-            <img src="assets/Logos/interface-setting-app-widget--Streamline-Core.png" alt="Matches Icon" style="width:54px;height:54px;margin-bottom:10px;">
-            <h1 class="see-matches-title">See matches</h1>
-            <div class="see-matches-subpill">
-                <span class="see-matches-subpill-text">find matches of your pet</span>
-            </div>
+        <div class="header-bar"></div>
+        <a href="index.php" class="back-arrow">
+            <img src="assets/How-it-Works/back-arrow.png" alt="Back">
+        </a>
+        <div class="subpage-header">
+            <img src="assets/Logos/interface-setting-app-widget--Streamline-Core.png" alt="Matches Icon" class="subpage-icon">
+            <h1 class="subpage-title">See matches</h1>
+            <div class="subpage-subpill">Find matches of your pet</div>
         </div>
     </header>
     <main>
         <div class="see-matches-card">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
-                <div style="font-size:1.18rem;font-weight:700;color:#223a7b;">Your Search Image</div>
-                <div id="procTimePill" style="min-width:140px;text-align:right;font-size:0.78rem;"></div>
+            <div class="card-subtitle-holder">
+                <div class="card-subtitle">Your Search Image</div>
+                <div id="procTimePill" class="process-time"></div>
             </div>
             <div class="see-matches-row">
                 <?php
@@ -167,21 +169,17 @@
                                 if (!$typeSelectedByUser && !$preprocessEnabled && !preg_match('/^(cat|dog)/i',$petType)) {
                                     $computedType = 'cat,dog';
                                 }
-                                // Count gallery images across relevant folders to set dynamic capacity
-                                $targetDirs = [];
-                                if (preg_match('/cat/i', $computedType)) { $targetDirs[] = $preDir . DIRECTORY_SEPARATOR . 'Cats'; }
-                                if (preg_match('/dog/i', $computedType)) { $targetDirs[] = $preDir . DIRECTORY_SEPARATOR . 'Dogs'; }
-                                if (!$targetDirs) { $targetDirs[] = $preDir . DIRECTORY_SEPARATOR . 'Unknown'; }
+                                $subsetDir = null; // only used for fetchCount baseline (choose Cats if exists else Dogs)
+                                $fallbackSubset = $preDir . DIRECTORY_SEPARATOR . 'Cats';
+                                if (!is_dir($fallbackSubset)) { $fallbackSubset = $preDir . DIRECTORY_SEPARATOR . 'Dogs'; }
                                 $fetchCount = 0;
-                                foreach ($targetDirs as $td) {
-                                    if (is_dir($td)) {
-                                        foreach (scandir($td) as $fn) {
-                                            if (preg_match('/\.(jpe?g|png|bmp|webp)$/i', $fn)) { $fetchCount++; }
-                                        }
+                                if (is_dir($fallbackSubset)) {
+                                    foreach (scandir($fallbackSubset) as $fn) {
+                                        if (preg_match('/\.(jpe?g|png|bmp|webp)$/i', $fn)) { $fetchCount++; }
                                     }
                                 }
-                                // Fetch exactly the dataset size (or at least requestedTop if bigger)
-                                $maxFetch = max($requestedTop, $fetchCount);
+                                $maxFetch = min( max($requestedTop, $fetchCount), 300 );
+                                if ($maxFetch === 0) { $maxFetch = max(50, $requestedTop); }
                                 $argImage = escapeshellarg($jpgPath);
                                 $argType = escapeshellarg($computedType);
                                 $argDir = escapeshellarg($preDir);
@@ -233,6 +231,7 @@
                     } else {
                         $elapsedTotalSec = ($serverEndMs - $serverStartMs)/1000.0; // fallback: server-only time
                     }
+                    // Process time frontend output
                     $procLabel = 'Process Time: ' . number_format($elapsedTotalSec, 2) . ' secs';
                     $pillHtml = '<div style="background:#eef4ff;border:1px solid #c6d6f3;color:#1f3d7a;padding:6px 14px;border-radius:20px;font-size:0.72rem;font-weight:600;letter-spacing:.5px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">'
                         . '<span style="display:inline-block;width:8px;height:8px;background:#4a8cff;border-radius:50%;box-shadow:0 0 0 3px rgba(74,140,255,0.15);"></span>'
@@ -240,6 +239,7 @@
                     echo '<script>document.addEventListener("DOMContentLoaded",function(){var p=document.getElementById("procTimePill"); if(p){p.innerHTML=' . json_encode($pillHtml) . ';}});</script>';
                 }
                 ?>
+
                 <div class="search-image-frame">
                     <?php
                     if ($originalBase64) {
@@ -255,7 +255,7 @@
                 <div class="preprocess-debug-card">
                     <div class="preprocess-debug-title">Preprocessed Image</div>
                     <div class="preprocess-debug-content">
-                        <div style="display:flex;flex-direction:row;align-items:center;gap:24px;width:100%;">
+                        <div class="preprocess-debug-row">
                             <div class="preprocess-debug-frame">
                                 <?php
                                 if (!$preprocessEnabled) {
@@ -283,9 +283,9 @@
                                         foreach($steps as $idx=>$s){ echo ($idx+1) . '. ' . htmlspecialchars($s) . '<br>'; }
                                     } else { echo 'No steps recorded'; }
                                     if ($errorMsg) { 
-                                        echo '<span style="color:#b30000;font-weight:700;">Error: ' . htmlspecialchars($errorMsg) . '</span>';
+                                        echo '<span style="color:#b30000;font-weight:700;word-wrap:break-word;word-break:break-word;max-width:100%;display:inline-block;">Error: ' . htmlspecialchars($errorMsg) . '</span>';
                                         if ($similarityDebug || $similarityAttempts) {
-                                            echo '<details style="margin-top:6px;"><summary style="cursor:pointer;color:#223a7b;">Similarity Debug Log</summary><div style="font-size:0.7rem;max-height:160px;overflow:auto;background:#fff;border:1px solid #d0dae9;padding:6px;border-radius:6px;">';
+                                            echo '<details style="margin-top:6px;"><summary style="cursor:pointer;color:#223A7B;">Similarity Debug Log</summary><div style="font-size:0.7rem;max-height:160px;max-width:230px;overflow:auto;background:#FFFFFF;border:1px solid #B3C6FF;padding:6px;border-radius:6px;">';
                                             if ($similarityAttempts) {
                                                 echo '<div><b>Load Attempts:</b> ' . htmlspecialchars(implode(', ', $similarityAttempts)) . '</div>';
                                             }
@@ -300,12 +300,12 @@
                             </div>
                         </div>
                     </div>
-                    <button style="background:#ffd166;color:#223a7b;font-weight:700;border:none;border-radius:12px;padding:12px 28px;font-size:1.08rem;box-shadow:0 2px 8px rgba(60,90,200,0.10);cursor:pointer;align-self:flex-end;" onclick="window.location.href='find-missing-pet.php'">new search</button>
+                    <button style="background:#F6C23E;color:#FFFFFF;font-weight:700;border:none;border-radius:20px;padding:8px 24px;font-size:1rem;box-shadow:0 2px 8px rgba(60,90,200,0.10);cursor:pointer;align-self:flex-end;" onclick="window.location.href='find-missing-pet.php'">New search</button>
                 </div>
             </div>
         </div>
         <div class="top-matches-section">
-            <div class="top-matches-title" style="display:flex;align-items:center;gap:16px;">top matches
+            <div class="top-matches-title" style="display:flex;align-items:center;gap:16px;">Top matches
                 <form method="post" style="margin:0;display:flex;align-items:center;gap:8px;" enctype="multipart/form-data">
                     <?php
                     // Preserve original upload when adjusting top_k (needs re-upload if refresh). Simpler approach: provide a notice.
@@ -319,13 +319,13 @@
                     <button id="prevPageBtn" type="button" style="background:#f0f4fb;border:1px solid #c2cee3;color:#223a7b;border-radius:8px;padding:4px 10px;cursor:pointer;">◀</button>
                     <div style="display:flex;align-items:center;gap:4px;font-size:0.8rem;color:#223a7b;">
                         <span>Page</span>
-                        <input id="pageInput" type="number" value="1" min="1" style="width:56px;padding:2px 4px;border:1px solid #c2cee3;border-radius:6px;font-size:0.8rem;color:#223a7b;" />
+                        <input id="pageInput" type="number" value="1" min="1" style="width:45px;padding:2px 4px;border:1px solid #c2cee3;border-radius:6px;font-size:0.8rem;color:#223a7b;" />
                         <span id="totalPagesLabel">/1</span>
                     </div>
                     <button id="nextPageBtn" type="button" style="background:#f0f4fb;border:1px solid #c2cee3;color:#223a7b;border-radius:8px;padding:4px 10px;cursor:pointer;">▶</button>
                 </div>
             </div>
-            <div class="top-matches-row" id="topMatchesContainer" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:28px;width:100%;align-items:stretch;">
+            <div class="top-matches-row" id="topMatchesContainer">
                 <?php
                 if (!($matches && count($matches) > 0)) {
                     echo '<div style="color:#4a5a7b;font-size:0.95rem;">No matches available (model or preprocessed data missing).</div>';
@@ -333,10 +333,11 @@
                 ?>
             </div>
             <div id="imageModal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,20,40,0.55);backdrop-filter:blur(3px);z-index:1000;">
-                <div style="position:relative;background:#fff;padding:20px 24px 28px;border-radius:26px;max-width:85vw;max-height:85vh;box-shadow:0 10px 40px rgba(0,0,0,0.28);display:flex;flex-direction:column;gap:16px;overflow:hidden;">
-                    <button id="closeModalBtn" style="position:absolute;top:10px;right:10px;background:#223a7b;color:#fff;border:none;border-radius:50%;width:38px;height:38px;font-size:1.15rem;cursor:pointer;line-height:38px;text-align:center;">×</button>
-                    <div style="flex:1;display:flex;align-items:center;justify-content:center;min-width:640px;min-height:640px;">
-                        <img id="modalImage" src="" alt="Enlarged Match" style="width:100%;height:100%;object-fit:contain;max-width:75vw;max-height:70vh;image-rendering:auto;border-radius:18px;" />
+                <div style="position:relative;background:#fff;padding:24px;border-radius:24px;width:90vmin;height:90vmin;max-width:800px;max-height:800px;min-width:280px;min-height:280px;box-shadow:0 10px 40px rgba(0,0,0,0.28);display:flex;flex-direction:column;overflow:hidden;">
+                    <button id="closeModalBtn" style="position:absolute;top:12px;right:12px;background:#223a7b;color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-size:1.2rem;cursor:pointer;line-height:36px;text-align:center;z-index:2;">×</button>
+                    <div style="flex:1;margin:-24px;background:#f8faff;display:flex;align-items:center;justify-content:center;position:relative;">
+                        <div style="position:absolute;inset:24px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                            <img id="modalImage" src="" alt="Enlarged Match" style="max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;border-radius:16px;transition:transform 0.3s ease;" onload="this.style.opacity='1'" onerror="this.style.opacity='1'" />
                     </div>
                     <div id="modalCaption" style="font-size:0.85rem;color:#223a7b;font-weight:600;text-align:center;word-break:break-all;"></div>
                 </div>
@@ -392,8 +393,8 @@
                 const detailsId = 'details_'+m.rank+'_'+Math.random().toString(36).slice(2,8);
                 card.innerHTML = `
                     <div class="top-match-rank">#${m.rank}</div>
-                    <div class="top-match-image-wrapper" style="border-radius:14px;overflow:hidden;">
-                        <img src="${imgSrc}" class="top-match-image" alt="Match Image" style="border-radius:0;">
+                    <div class="top-match-image-wrapper">
+                        <img src="${imgSrc}" class="top-match-image" alt="Match Image">
                     </div>
                     <div class="match-name" title="${fileName}">${niceName}</div>
                     <div style="font-size:0.85rem;color:#4a5a7b;margin-bottom:6px;">Type: ${PET_TYPE}</div>
@@ -404,8 +405,8 @@
                             <div style=\"position:absolute;top:0;left:0;height:100%;width:${progressWidth}%;background:linear-gradient(90deg,#3867d6,#5b8bff);transition:width .4s;\"></div>
                         </div>
                     </div>
-                    <button class="details-btn" data-target="${detailsId}" style="background:#3867d6;color:#fff;font-weight:700;border:none;border-radius:10px;padding:6px 16px;font-size:0.85rem;box-shadow:0 2px 8px rgba(60,90,200,0.10);cursor:pointer;margin-top:10px;">view details</button>
-                    <button class="see-image-btn" data-img="${imgSrc}" data-full="${m.path || ''}" data-name="${fileName}" style="background:#f8faff;color:#3867d6;font-weight:700;border:1.5px solid #3867d6;border-radius:10px;padding:6px 16px;font-size:0.85rem;box-shadow:0 2px 8px rgba(60,90,200,0.10);cursor:pointer;margin-top:6px;">See Image</button>
+                    <button class="details-btn" data-target="${detailsId}" style="background:#4E73DF;color:#fff;font-weight:600;border:none;border-radius:18px;padding:6px 16px;font-size:0.85rem;cursor:pointer;margin-top:10px;">View Details</button>
+                    <button class="see-image-btn" data-img="${imgSrc}" data-full="${m.path || ''}" data-name="${fileName}" style="background:#f8faff;color:#4E73DF;font-weight:600;border:2px solid #4E73DF;border-radius:18px;padding:6px 16px;font-size:0.85rem;cursor:pointer;margin-top:0px;">See Image</button>
                     <div id="${detailsId}" style="display:none;margin-top:10px;font-size:0.68rem;color:#223a7b;background:#f0f4fb;padding:6px 8px;border:1px solid #d3deee;border-radius:8px;word-break:break-all;">
                         <div><b>File:</b> ${fileName}</div>
                         <div><b>Full Path:</b> ${m.path || 'n/a'}</div>
@@ -447,15 +448,33 @@
                     imgEl.src = useSrc;
                     modal.style.display='flex';
                     document.body.style.overflow='hidden';
-                    // If image loads very small (<256px either dimension), fallback to thumb or upscale via CSS
+                    // Handle image loading and sizing
+                    imgEl.style.opacity = '0';
                     imgEl.onload = () => {
-                        if(imgEl.naturalWidth < 256 && imgEl.naturalHeight < 256){
+                        // Determine if image is significantly wider or taller
+                        const ratio = imgEl.naturalWidth / imgEl.naturalHeight;
+                        if (ratio > 1.5) { // Wider image
+                            imgEl.style.width = '100%';
+                            imgEl.style.height = 'auto';
+                        } else if (ratio < 0.67) { // Taller image
+                            imgEl.style.width = 'auto';
+                            imgEl.style.height = '100%';
+                        } else { // Near square or slightly rectangular
+                            imgEl.style.width = '100%';
+                            imgEl.style.height = '100%';
+                        }
+                        
+                        // Handle small images
+                        if (imgEl.naturalWidth < 256 && imgEl.naturalHeight < 256) {
                             imgEl.style.imageRendering = 'crisp-edges';
-                            // If we attempted full path and got tiny, fallback to thumb if different
-                            if(useSrc !== thumb){ imgEl.src = thumb; }
+                            imgEl.style.maxWidth = '80%';
+                            imgEl.style.maxHeight = '80%';
+                            // Fallback to thumbnail if available and different
+                            if (useSrc !== thumb) { imgEl.src = thumb; }
                         } else {
                             imgEl.style.imageRendering = 'auto';
                         }
+                        imgEl.style.opacity = '1';
                     };
                 });
             });
