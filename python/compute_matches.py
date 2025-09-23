@@ -299,16 +299,16 @@ def _similarity_tf(query_path: str, gallery_paths: List[str], top_k: int, attemp
 		gal_paths, gal_embs = _embeddings_tf(model, gallery_paths, batch_size=32, debug=debug)
 		if gal_embs.shape[0] == 0:
 			return []
-
-		# Cosine similarity with L2-normalized outputs (if model ensures it). Otherwise compute explicitly.
-		# Normalize if not already L2
-		def l2n(a, axis=1, eps=1e-9):
-			n = np.linalg.norm(a, axis=axis, keepdims=True)
-			return a / (n + eps)
-
-		qn = l2n(q_emb)
-		gn = l2n(gal_embs)
-		sims = (qn @ gn.T).flatten()  # [-1,1]
+		# Pearson correlation similarity
+		# r(a,b) = ((a-mean(a))·(b-mean(b))) / (||a-mean(a)|| * ||b-mean(b)||)
+		debug.append('SIMILARITY:pearson')
+		q_vec = q_emb.reshape(-1).astype(np.float32)
+		q_centered = q_vec - float(q_vec.mean())
+		G = gal_embs.astype(np.float32)
+		G_centered = G - G.mean(axis=1, keepdims=True)
+		q_norm = np.linalg.norm(q_centered) + 1e-9
+		G_norms = np.linalg.norm(G_centered, axis=1) + 1e-9
+		sims = (G_centered @ q_centered) / (q_norm * G_norms)  # [-1,1]
 		order = np.argsort(-sims)
 		top_k = min(top_k, len(order))
 		out = []
