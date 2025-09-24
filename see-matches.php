@@ -169,17 +169,21 @@ $serverStartMs = microtime(true)*1000.0;
                                 if (!$typeSelectedByUser && !$preprocessEnabled && !preg_match('/^(cat|dog)/i',$petType)) {
                                     $computedType = 'cat,dog';
                                 }
-                                $subsetDir = null; // only used for fetchCount baseline (choose Cats if exists else Dogs)
-                                $fallbackSubset = $preDir . DIRECTORY_SEPARATOR . 'Cats';
-                                if (!is_dir($fallbackSubset)) { $fallbackSubset = $preDir . DIRECTORY_SEPARATOR . 'Dogs'; }
+                                // Count gallery images across relevant folders to set dynamic capacity
+                                $targetDirs = [];
+                                if (preg_match('/cat/i', $computedType)) { $targetDirs[] = $preDir . DIRECTORY_SEPARATOR . 'Cats'; }
+                                if (preg_match('/dog/i', $computedType)) { $targetDirs[] = $preDir . DIRECTORY_SEPARATOR . 'Dogs'; }
+                                if (!$targetDirs) { $targetDirs[] = $preDir . DIRECTORY_SEPARATOR . 'Unknown'; }
                                 $fetchCount = 0;
-                                if (is_dir($fallbackSubset)) {
-                                    foreach (scandir($fallbackSubset) as $fn) {
-                                        if (preg_match('/\.(jpe?g|png|bmp|webp)$/i', $fn)) { $fetchCount++; }
+                                foreach ($targetDirs as $td) {
+                                    if (is_dir($td)) {
+                                        foreach (scandir($td) as $fn) {
+                                            if (preg_match('/\.(jpe?g|png|bmp|webp)$/i', $fn)) { $fetchCount++; }
+                                        }
                                     }
                                 }
-                                $maxFetch = min( max($requestedTop, $fetchCount), 300 );
-                                if ($maxFetch === 0) { $maxFetch = max(50, $requestedTop); }
+                                // Fetch exactly the dataset size (or at least requestedTop if bigger)
+                                $maxFetch = max($requestedTop, $fetchCount);
                                 $argImage = escapeshellarg($jpgPath);
                                 $argType = escapeshellarg($computedType);
                                 $argDir = escapeshellarg($preDir);
