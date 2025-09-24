@@ -200,9 +200,41 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     .preview-img { max-width:220px; max-height:220px; border-radius:16px; object-fit:cover; box-shadow:0 6px 20px -8px rgba(34,58,123,.4); display:none; margin-top:18px; }
     .reg-image-placeholder-text { color: #3867d6; font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; padding: 0 12px;}
 
+    .reg-remove-image {
+        position: absolute;
+        top: -12px;
+        right: -12px;
+        width: 28px;
+        height: 28px;
+        background: #e74c3c;
+        border: none;
+        border-radius: 50%;
+        color: white;
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        transition: all 0.2s ease;
+        z-index: 2;
+    }
+
+    .reg-remove-image:hover {
+        background: #c0392b;
+        transform: scale(1.1);
+    }
+
     @media (max-width: 768px) {
         .reg-image-placeholder-text { font-size: 1rem; text-align: center; }
         .btn-row { flex-direction: column; gap: 12px; }
+        .reg-remove-image {
+            width: 32px;
+            height: 32px;
+            top: -16px;
+            right: -16px;
+            font-size: 22px;
+        }
     }
 </style>
 </head>
@@ -258,12 +290,13 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         <div class="form-row" style="margin-top:6px;">
             <div class="form-col" style="flex:1 1 100%;">
                 <label>Upload Pet Image: <span class="required">*</span></label>
-                <div class="find-image-upload" id="reg-upload-box" style="min-height:240px;">
+                <div class="find-image-upload" id="reg-upload-box" style="min-height:240px;position:relative;">
                     <input type="file" id="reg-pet-image" name="pet_image" accept="image/*" class="find-input" style="display:none;">
                     <label for="reg-pet-image" id="reg-upload-label" class="find-image-upload-label" style="cursor:pointer;min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
                         <span id="reg-image-placeholder" class="reg-image-placeholder-text">Click to upload or drag an image here</span>
                         <img id="reg-image-preview" src="" alt="Preview" style="display:none;max-width:100%;max-height:200px;border-radius:14px;box-shadow:0 2px 8px rgba(60,90,200,0.10);margin-top:12px;object-fit:cover;" />
                     </label>
+                    <button type="button" id="reg-remove-image" class="reg-remove-image" style="display:none;" aria-label="Remove uploaded image">×</button>
                 </div>
             </div>
         </div>
@@ -307,21 +340,57 @@ const regInput = document.getElementById('reg-pet-image');
 const regPreview = document.getElementById('reg-image-preview');
 const regPlaceholder = document.getElementById('reg-image-placeholder');
 const regBox = document.getElementById('reg-upload-box');
+const regRemoveBtn = document.getElementById('reg-remove-image');
+
+function resetRegImageUpload() {
+    regInput.value = ''; // Clear the file input
+    regPreview.src = '';
+    regPreview.style.display = 'none';
+    regPlaceholder.style.display = 'block';
+    regRemoveBtn.style.display = 'none';
+}
+
+// Handle label click to prevent double dialog when image is uploaded
+const regUploadLabel = document.getElementById('reg-upload-label');
+regUploadLabel.addEventListener('click', function(e) {
+    if (hasRegisterImage()) {
+        e.preventDefault(); // Prevent file dialog if image already uploaded
+    }
+});
 
 regInput.addEventListener('change', e => {
     const file = e.target.files[0];
     if (file && file.type.startsWith('image/')) {
         const reader = new FileReader();
-        reader.onload = ev => { regPreview.src = ev.target.result; regPreview.style.display='block'; regPlaceholder.style.display='none'; };
+        reader.onload = ev => { 
+            regPreview.src = ev.target.result; 
+            regPreview.style.display='block'; 
+            regPlaceholder.style.display='none'; 
+            regRemoveBtn.style.display='flex';
+        };
         reader.readAsDataURL(file);
     } else {
-        regPreview.src=''; regPreview.style.display='none'; regPlaceholder.style.display='block';
+        resetRegImageUpload();
     }
 });
+// Add remove image functionality
+regRemoveBtn.addEventListener('click', function(e) {
+    e.stopPropagation(); // Prevent triggering upload area click
+    resetRegImageUpload();
+});
+
 // Drag & drop
 ['dragenter','dragover'].forEach(ev=>regBox.addEventListener(ev, e=>{e.preventDefault();regBox.style.borderColor='#3867d6';}));
 ['dragleave','drop'].forEach(ev=>regBox.addEventListener(ev, e=>{e.preventDefault();regBox.style.borderColor='#b3c6ff';}));
-regBox.addEventListener('drop', e=>{ const files = e.dataTransfer.files; if(files.length && files[0].type.startsWith('image/')){ regInput.files=files; regInput.dispatchEvent(new Event('change')); }});
+regBox.addEventListener('drop', e=>{ 
+    const files = e.dataTransfer.files; 
+    if(files.length && files[0].type.startsWith('image/')){ 
+        regInput.files=files; 
+        regInput.dispatchEvent(new Event('change')); 
+    } else {
+        resetRegImageUpload();
+    }
+});
 
 // Notification dialog & validation logic
 const registerDialog = document.getElementById('register-notification-dialog');
@@ -349,6 +418,7 @@ function hideRegisterDialog(){
 function hasRegisterImage(){
     return regInput.files && regInput.files.length>0 && regInput.files[0].type.startsWith('image/');
 }
+
 registerForm.addEventListener('submit', e=>{
     const nameField = registerForm.querySelector('input[name="pet_name"]');
     if(!nameField.value.trim()){
