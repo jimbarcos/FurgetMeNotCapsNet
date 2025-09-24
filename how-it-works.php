@@ -7,7 +7,15 @@
         <link rel="stylesheet" href="css/styles.css">
     </head>
 
-    <body>
+    <body class="logo-bg">
+        <div id="page-transition-overlay">
+            <div class="loading-content">
+                <div class="loading-paw">
+                    <img src="assets/Logos/pawprint-blue 1.png" alt="Loading">
+                </div>
+                <p class="loading-text">Loading...</p>
+            </div>
+        </div>
         <div class="header-bar"></div>
         <a href="index.php" class="back-arrow">
             <img src="assets/How-it-Works/back-arrow.png" alt="Back">
@@ -51,6 +59,6 @@
             </div>
         </div>
 
-        <script src="script.js"></script>
+        <script src="js/page-transitions.js"></script>
     </body>
 </html>

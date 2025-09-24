@@ -42,14 +42,18 @@ body {
     animation: slideDownFade 0.6s ease-out 0.2s both;
 }
 
-.loading-spinner {
-    width: 50px;
-    height: 50px;
-    border: 3px solid rgba(255, 255, 255, 0.3);
-    border-top: 3px solid white;
-    border-radius: 50%;
-    animation: spin 2s linear infinite;
+.loading-paw {
+    width: 60px;
+    height: 60px;
     margin: 0 auto 20px;
+    animation: pawPulse 1.8s ease-in-out infinite;
+}
+
+.loading-paw img {
+    width: 100%;
+    height: 100%;
+    filter: brightness(0) invert(1);
+    object-fit: contain;
 }
 
 .loading-text {
@@ -58,9 +62,15 @@ body {
     margin: 0;
 }
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+@keyframes pawPulse {
+    0%, 100% { 
+        transform: scale(1);
+        opacity: 0.8;
+    }
+    50% { 
+        transform: scale(1.2);
+        opacity: 1;
+    }
 }
 
 @keyframes slideDownFade {
@@ -96,24 +106,23 @@ body {
     transform: translateX(-2px);
 }
 
-.paw-bg {
-    background:
-        url('assets/gradient-element-1.png') no-repeat -100% -100%,
-        url('assets/gradient-element-2.png') no-repeat 230% 150%,
-        url('assets/paw-print-1.png') no-repeat 0% 15%,
-        url('assets/paw-print-2.png') no-repeat 100% 100%,
-        #F0F5FF;
-    background-size:
-        1000px 1000px,
-        1000px 1000px,
-        200px 145px,
-        250px 350px;
-    background-attachment: fixed, fixed, fixed, fixed;
+.bg-paws {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: url('../assets/Home/bg-design.png') no-repeat left bottom;
+    background-size: 100vw auto;
+    z-index: -1;
+    opacity: 1;
+    pointer-events: none;
+    overflow: hidden;
 }
 
 .logo-bg {
     background:
-        url('assets/logo-bg.png') no-repeat 50% 95%,
+        url('../assets/How-it-Works/Logo 1.png') no-repeat 50% 95%,
         #F0F5FF;
     background-size: 450px 400px;
 }
@@ -353,9 +362,9 @@ body {
 
 /* Mobile optimizations */
 @media (max-width: 480px) {
-    .loading-spinner {
-        width: 40px;
-        height: 40px;
+    .loading-paw {
+        width: 50px;
+        height: 50px;
     }
 
     .loading-text {
@@ -378,23 +387,16 @@ body {
         height: 35px;
     }
 
-    .paw-bg {
+    .bg-paws {
         background:
-            url('assets/gradient-element-1.png') no-repeat -100% -100%,
-            url('assets/gradient-element-2.png') no-repeat 300% 180%,
-            url('assets/paw-print-1.png') no-repeat -5% 15%,
-            url('assets/paw-print-2.png') no-repeat 125% 100%,
+            radial-gradient(circle at 50% 120%, #B3D1FF 0%, #F0F5FF 70%),
             #F0F5FF;
-        background-size:
-            500px 500px,
-            500px 500px,
-            120px 80px,
-            150px 220px;
-        background-attachment: fixed, fixed, fixed, fixed;
     }
 
     .logo-bg {
-        background:#F0F5FF;
+        background:
+            radial-gradient(circle at 50% 120%, #B3D1FF 0%, #F0F5FF 70%),
+            #F0F5FF;
     }
 
     .container {
@@ -532,7 +534,7 @@ body {
 
     .logo-bg {
         background:
-            url('assets/logo-bg.png') no-repeat 50% 95%,
+            url('../assets/How-it-Works/Logo 1.png') no-repeat 50% 95%,
             #F0F5FF;
         background-size: 450px 400px;
     }

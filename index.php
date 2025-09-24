@@ -8,6 +8,7 @@
     </head>
 
     <body>
+        <div class="bg-paws"></div>
         <div class="header-bar"></div>
 
         <div class="container">
@@ -52,5 +53,6 @@
         </div>
 
         <script src="js/script.js"></script>
+        <script src="js/page-transitions.js"></script>
     </body>
 </html>

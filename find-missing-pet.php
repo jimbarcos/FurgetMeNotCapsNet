@@ -7,8 +7,17 @@
         <link rel="stylesheet" href="css/styles.css">
     </head>
 
-    <body class="paw-bg">
-        
+    <body>
+        <div id="page-transition-overlay">
+            <div class="loading-content">
+                <div class="loading-paw">
+                    <img src="assets/Logos/pawprint-blue 1.png" alt="Loading">
+                </div>
+                <p class="loading-text">Loading...</p>
+            </div>
+        </div>
+        <div class="bg-paws"></div>
+
         <!-- Loading overlay -->
         <div id="find-loading-overlay" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;background:rgba(248,250,255,0.85);backdrop-filter:blur(2px);align-items:center;justify-content:center;flex-direction:column;">
             <div style="display:flex;flex-direction:column;align-items:center;max-width:520px;">
@@ -241,6 +250,7 @@
                 }, 5000);
             }
             </script>
+            <script src="js/page-transitions.js"></script>
         </main>
     </body>
 </html>

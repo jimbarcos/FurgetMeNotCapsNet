@@ -55,7 +55,7 @@ $serverStartMs = microtime(true)*1000.0;
         .details-btn:hover { filter:brightness(1.05); }
     </style>
 </head>
-<body style="background: url('assets/Home/bg-rectangle.png') center/cover no-repeat fixed;">
+<body>
     <div class="bg-paws"></div>
     <header>
         <div class="header-bar"></div>
@@ -337,13 +337,12 @@ $serverStartMs = microtime(true)*1000.0;
                 ?>
             </div>
             <div id="imageModal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,20,40,0.55);backdrop-filter:blur(3px);z-index:1000;">
-                <div style="position:relative;background:#fff;padding:24px;border-radius:24px;width:90vmin;height:90vmin;max-width:800px;max-height:800px;min-width:280px;min-height:280px;box-shadow:0 10px 40px rgba(0,0,0,0.28);display:flex;flex-direction:column;overflow:hidden;">
+                <div style="position:relative;background:#fff;padding:24px;border-radius:24px;width:90vmin;height:90vmin;max-width:800px;max-height:800px;min-width:280px;min-height:280px;box-shadow:0 10px 40px rgba(0,0,0,0.28);display:flex;flex-direction:column;">
                     <button id="closeModalBtn" style="position:absolute;top:12px;right:12px;background:#223a7b;color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-size:1.2rem;cursor:pointer;line-height:36px;text-align:center;z-index:2;">×</button>
-                    <div style="flex:1;margin:-24px;background:#f8faff;display:flex;align-items:center;justify-content:center;position:relative;">
-                        <div style="position:absolute;inset:24px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-                            <img id="modalImage" src="" alt="Enlarged Match" style="max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;border-radius:16px;transition:transform 0.3s ease;" onload="this.style.opacity='1'" onerror="this.style.opacity='1'" />
+                    <div style="flex:1;background:#f8faff;display:flex;align-items:center;justify-content:center;border-radius:16px;margin-bottom:16px;overflow:hidden;">
+                        <img id="modalImage" src="" alt="Enlarged Match" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:16px;transition:transform 0.3s ease;" onload="this.style.opacity='1'" onerror="this.style.opacity='1'" />
                     </div>
-                    <div id="modalCaption" style="font-size:0.85rem;color:#223a7b;font-weight:600;text-align:center;word-break:break-all;"></div>
+                    <div id="modalCaption" style="font-size:0.9rem;color:#223a7b;font-weight:600;text-align:center;word-break:break-word;padding:8px 16px;background:#f8faff;border-radius:12px;min-height:20px;"></div>
                 </div>
             </div>
         </div>

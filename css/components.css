@@ -124,24 +124,6 @@
         font-size: 0.95rem;
         margin: 4px 0 0 0;
     }
-    .bg-paws {
-        background-size: 70vw auto;
-        opacity: 0.18;
-    }
-}
-
-.bg-paws {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: url('../assets/Home/bg-design.png') no-repeat left bottom;
-    background-size: 100vw auto;
-    z-index: -1;
-    opacity: 1;
-    pointer-events: none;
-    overflow: hidden;
 }
 
 .card {

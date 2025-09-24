@@ -204,7 +204,15 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     }
 </style>
 </head>
-<body style="background: url('assets/Home/bg-rectangle.png') center/cover no-repeat fixed;">
+<body>
+    <div id="page-transition-overlay">
+        <div class="loading-content">
+            <div class="loading-paw">
+                <img src="assets/Logos/pawprint-blue 1.png" alt="Loading">
+            </div>
+            <p class="loading-text">Loading...</p>
+        </div>
+    </div>
     <div class="bg-paws"></div>
     <header>
         <div class="header-bar"></div>
@@ -421,5 +429,6 @@ if(successModal){
     }
 }
 </script>
+<script src="js/page-transitions.js"></script>
 </body>
 </html>
