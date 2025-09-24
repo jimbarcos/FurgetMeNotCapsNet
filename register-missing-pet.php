@@ -6,7 +6,7 @@ function generate_uuid(){
     $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
-$errors = [];$successInfo=null;$rawPetType='Auto-Detect';$finalPetType=null;$savedPath=null;$originalName='';
+$errors = [];$successInfo=null;$rawPetType='Auto-Detect';$finalPetType=null;$savedPath=null;$originalName='';$enablePreprocess=true;
 if($_SERVER['REQUEST_METHOD']==='POST'){
     $rawPetType = isset($_POST['pet_type']) ? trim($_POST['pet_type']) : 'Auto-Detect';
     $originalName = isset($_POST['pet_name']) ? trim($_POST['pet_name']) : '';
@@ -16,34 +16,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     if(!isset($_FILES['pet_image']) || $_FILES['pet_image']['error']!==UPLOAD_ERR_OK){ $errors[]='Pet image is required.'; }
     if(!$errors){
         $uploadTmp = $_FILES['pet_image']['tmp_name'];
-        
-        // Check if FileInfo extension is available, if not use alternative method
-        if (function_exists('mime_content_type')) {
-            $mime = mime_content_type($uploadTmp);
-        } else {
-            // Fallback: Check file signature/magic bytes
-            $finfo = @fopen($uploadTmp, 'rb');
-            if ($finfo) {
-                $bytes = fread($finfo, 12);
-                fclose($finfo);
-                
-                // Check image signatures
-                if (substr($bytes, 0, 2) === "\xFF\xD8") {
-                    $mime = 'image/jpeg';
-                } elseif (substr($bytes, 0, 8) === "\x89PNG\r\n\x1A\n") {
-                    $mime = 'image/png';
-                } elseif (substr($bytes, 0, 4) === "RIFF" && substr($bytes, 8, 4) === "WEBP") {
-                    $mime = 'image/webp';
-                } elseif (substr($bytes, 0, 2) === "BM") {
-                    $mime = 'image/bmp';
-                } else {
-                    $mime = $_FILES['pet_image']['type']; // Fallback to browser-provided type
-                }
-            } else {
-                $mime = $_FILES['pet_image']['type']; // Fallback to browser-provided type
-            }
-        }
-        
+        $mime = mime_content_type($uploadTmp);
         if(!preg_match('/image\/(jpeg|png|jpg|webp|bmp)/i',$mime)){
             $errors[]='Unsupported image format.';
         } else {
@@ -62,10 +35,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                     $cmd = escapeshellcmd($python.' '.escapeshellarg($processScript).' '.escapeshellarg($tempInput));
                     $output = shell_exec($cmd.' 2>&1');
                     $json=null; if($output){ $brace=strpos($output,'{'); if($brace!==false){ $json=json_decode(substr($output,$brace),true);} }
-                    if(!($json && isset($json['ok']) && $json['ok'])){ 
-                        $errorDetail = ($json && isset($json['error'])) ? $json['error'] : 'Unknown preprocessing error';
-                        $errors[]='Failed to preprocess image: ' . $errorDetail; 
-                    }
+                    if(!($json && isset($json['ok']) && $json['ok'])){ $errors[]='Failed to preprocess image.'; }
                     else {
                         $processedBase64 = $json['processed_base64'] ?? null;
                         $detType = $json['pet_type'] ?? 'Unknown';
@@ -122,18 +92,14 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                     $cmd = escapeshellcmd($python.' '.escapeshellarg($resizeScript).' '.escapeshellarg($tempInput));
                     $output = shell_exec($cmd.' 2>&1');
                     $json=null; if($output){ $brace=strpos($output,'{'); if($brace!==false){ $json=json_decode(substr($output,$brace),true);} }
-                    if(!($json && isset($json['ok']) && $json['ok'])){ 
-                        $errorDetail = ($json && isset($json['error'])) ? $json['error'] : 'Unknown resize error';
-                        $errors[]='Failed to resize image: ' . $errorDetail; 
-                    }
+                    if(!($json && isset($json['ok']) && $json['ok'])){ $errors[]='Failed to resize image.'; }
                     else {
                         $processedBase64 = $json['processed_base64'] ?? null;
                         if(!$processedBase64){ $errors[]='Resized image missing.'; }
                         else {
-                            // Determine final type from user selection (no auto-detect in resize-only mode)
+                            // Determine final type from user selection (no auto-detect here)
                             if($rawPetType==='Cat') $finalPetType='Cat';
                             elseif($rawPetType==='Dog') $finalPetType='Dog';
-                            elseif($rawPetType==='Auto-Detect') $finalPetType='Unknown'; // Can't auto-detect without YOLO
                             else $finalPetType='Unknown';
                             $folder = ($finalPetType==='Cat')?'Cats':(($finalPetType==='Dog')?'Dogs':'Unknown');
                             $preDir = __DIR__.DIRECTORY_SEPARATOR.'Preprocessed';
