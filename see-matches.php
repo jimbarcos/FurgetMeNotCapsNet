@@ -309,7 +309,16 @@ $serverStartMs = microtime(true)*1000.0;
             </div>
         </div>
         <div class="top-matches-section">
-            <div class="top-matches-title" style="display:flex;align-items:center;gap:16px;">Top matches
+            <div class="top-matches-title" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+                <span>Top matches</span>
+                <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:200px;">
+                    <input id="searchBox" type="text" placeholder="Search by filename..." 
+                        style="flex:1;padding:6px 12px;border:1px solid #c2cee3;border-radius:8px;font-size:0.85rem;color:#223a7b;background:#ffffff;min-width:150px;"
+                        oninput="handleSearch()" />
+                    <button id="clearSearchBtn" type="button" 
+                        style="background:#f0f4fb;border:1px solid #c2cee3;color:#223a7b;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:0.8rem;display:none;"
+                        onclick="clearSearch()">✕ Clear</button>
+                </div>
                 <form method="post" style="margin:0;display:flex;align-items:center;gap:8px;" enctype="multipart/form-data">
                     <?php
                     // Preserve original upload when adjusting top_k (needs re-upload if refresh). Simpler approach: provide a notice.
@@ -351,6 +360,8 @@ $serverStartMs = microtime(true)*1000.0;
         const PET_TYPE = <?php echo json_encode($petType); ?>;
         let PAGE_SIZE = <?php echo intval($requestedTop); ?> || 3;
         let currentPage = 1;
+        let filteredMatches = ALL_MATCHES;
+        let searchQuery = '';
 
         function filenameFromPath(p){
             if(!p) return 'unknown';
@@ -361,8 +372,37 @@ $serverStartMs = microtime(true)*1000.0;
             const base = fn.replace(/\.[^.]+$/, '').replace(/[_-]+/g,' ');
             return base.charAt(0).toUpperCase()+base.slice(1);
         }
+        function handleSearch(){
+            const searchBox = document.getElementById('searchBox');
+            const clearBtn = document.getElementById('clearSearchBtn');
+            searchQuery = searchBox.value.toLowerCase().trim();
+            
+            if(searchQuery === ''){
+                filteredMatches = ALL_MATCHES;
+                clearBtn.style.display = 'none';
+            } else {
+                filteredMatches = ALL_MATCHES.filter(m => {
+                    const filename = filenameFromPath(m.path).toLowerCase();
+                    return filename.includes(searchQuery);
+                });
+                clearBtn.style.display = 'inline-block';
+            }
+            
+            currentPage = 1;
+            renderMatches();
+        }
+        function clearSearch(){
+            const searchBox = document.getElementById('searchBox');
+            const clearBtn = document.getElementById('clearSearchBtn');
+            searchBox.value = '';
+            searchQuery = '';
+            filteredMatches = ALL_MATCHES;
+            clearBtn.style.display = 'none';
+            currentPage = 1;
+            renderMatches();
+        }
         function updatePaginationUI(){
-            const totalPages = Math.max(1, Math.ceil((ALL_MATCHES?ALL_MATCHES.length:0)/PAGE_SIZE));
+            const totalPages = Math.max(1, Math.ceil((filteredMatches?filteredMatches.length:0)/PAGE_SIZE));
             if(currentPage>totalPages) currentPage = totalPages;
             if(currentPage<1) currentPage = 1;
             const inp = document.getElementById('pageInput');
@@ -377,13 +417,13 @@ $serverStartMs = microtime(true)*1000.0;
         function renderMatches(){
             const cont = document.getElementById('topMatchesContainer');
             cont.innerHTML='';
-            if(!ALL_MATCHES || ALL_MATCHES.length===0){
-                cont.innerHTML = '<div style="color:#4a5a7b;font-size:0.95rem;">No matches available.</div>';
+            if(!filteredMatches || filteredMatches.length===0){
+                cont.innerHTML = '<div style="color:#4a5a7b;font-size:0.95rem;">No matches found.</div>';
                 updatePaginationUI();
                 return;
             }
             const start = (currentPage-1)*PAGE_SIZE;
-            const subset = ALL_MATCHES.slice(start, start+PAGE_SIZE);
+            const subset = filteredMatches.slice(start, start+PAGE_SIZE);
             subset.forEach(m => {
                 const score = m.score || 0;
                 const imgSrc = m.thumb_base64 ? 'data:image/jpeg;base64,'+m.thumb_base64 : 'assets/HomeCards/find-missing-pet-card.png';
@@ -491,11 +531,11 @@ $serverStartMs = microtime(true)*1000.0;
         const prevBtn = document.getElementById('prevPageBtn');
         const nextBtn = document.getElementById('nextPageBtn');
         if(prevBtn) prevBtn.addEventListener('click', ()=>{ if(currentPage>1){ currentPage--; renderMatches(); }});
-        if(nextBtn) nextBtn.addEventListener('click', ()=>{ const totalPages = Math.max(1, Math.ceil((ALL_MATCHES?ALL_MATCHES.length:0)/PAGE_SIZE)); if(currentPage<totalPages){ currentPage++; renderMatches(); }});
+        if(nextBtn) nextBtn.addEventListener('click', ()=>{ const totalPages = Math.max(1, Math.ceil((filteredMatches?filteredMatches.length:0)/PAGE_SIZE)); if(currentPage<totalPages){ currentPage++; renderMatches(); }});
         const pageInput = document.getElementById('pageInput');
         if(pageInput){
             pageInput.addEventListener('change', ()=>{
-                const totalPages = Math.max(1, Math.ceil((ALL_MATCHES?ALL_MATCHES.length:0)/PAGE_SIZE));
+                const totalPages = Math.max(1, Math.ceil((filteredMatches?filteredMatches.length:0)/PAGE_SIZE));
                 let val = parseInt(pageInput.value,10);
                 if(isNaN(val)) val = 1;
                 if(val<1) val=1; if(val>totalPages) val=totalPages;
